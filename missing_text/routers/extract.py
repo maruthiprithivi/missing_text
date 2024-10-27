@@ -20,8 +20,16 @@ router = APIRouter()
 
 
 # Helper function to handle file processing (refactored to reduce duplication)
+# Helper function to handle file processing (refactored to reduce duplication)
 async def process_pdf(
-    input_data, is_bytes: bool = False, safe_mode: bool = True, text: bool = True, table: bool = True, image: bool = True
+    input_data, 
+    is_bytes: bool = False, 
+    safe_mode: bool = True, 
+    text: bool = True, 
+    table: bool = True, 
+    image: bool = True, 
+    encode_page: bool = True, 
+    segment: bool = True
 ) -> dict:
     file_location = None  # Initialize file_location for later use
     try:
@@ -29,23 +37,34 @@ async def process_pdf(
 
         if file_size <= FILE_SIZE_THRESHOLD:
             logging.info("Processing small data in-memory using async method.")
-            extracted_content = await async_extract_pdf(input_data, safe_mode=safe_mode, text=text, table=table, image=image
-)
+            extracted_content = await async_extract_pdf(
+                input_data, 
+                safe_mode=safe_mode, 
+                text=text, 
+                table=table, 
+                image=image,
+                encode_page=encode_page,
+                segment=segment
+            )
         else:
             logging.info(
                 "Processing large data using sync method with a temporary file."
             )
 
             # Create a temporary file asynchronously
-            async with aiofiles.tempfile.NamedTemporaryFile(
-                "wb", delete=False
-            ) as temp_file:
+            async with aiofiles.tempfile.NamedTemporaryFile("wb", delete=False) as temp_file:
                 file_location = temp_file.name
                 await temp_file.write(input_data)  # Write byte data to the temp file
 
             # Run sync_extract_pdf in a thread pool asynchronously
             extracted_content = await run_in_threadpool(
-                sync_extract_pdf, file_location, safe_mode=safe_mode, text=text, table=table, image=image
+                sync_extract_pdf, file_location, 
+                safe_mode=safe_mode, 
+                text=text, 
+                table=table, 
+                image=image,
+                encode_page=encode_page,
+                segment=segment
             )
 
         return extracted_content
@@ -60,13 +79,16 @@ async def process_pdf(
             logging.info(f"Temporary file {file_location} has been cleaned up.")
 
 
+
 @router.post("/extract/pdf")
 async def extract_pdf(
     file: UploadFile = File(...), 
     safe_mode: bool = True,
     text: bool = Query(True),
     image: bool = Query(True),
-    table: bool = Query(True)
+    table: bool = Query(True),
+    encode_page: bool = Query(True),
+    segment: bool = Query(True)
 ):
     """
     Handles PDF extraction from uploaded files
@@ -77,10 +99,20 @@ async def extract_pdf(
         text (bool, optional): Whether to extract text from the PDF. Defaults to True.
         image (bool, optional): Whether to extract images from the PDF. Defaults to True.
         table (bool, optional): Whether to extract tables from the PDF. Defaults to True.
+        encode_page (bool, optional): Whether to encode and extract each page as an image (base64). Defaults to True.
+        segment (bool, optional): Whether to extract and categorize different content segments. Defaults to True.
     """
     file_content = await file.read()
     return JSONResponse(
-        content=await process_pdf(file_content, safe_mode=safe_mode, text=text, table=table, image=image)
+        content=await process_pdf(
+            file_content, 
+            safe_mode=safe_mode, 
+            text=text, 
+            table=table, 
+            image=image, 
+            encode_page=encode_page, 
+            segment=segment
+        )
     )
 
 
@@ -90,7 +122,9 @@ async def extract_pdf_bytes(
     safe_mode: bool = True,  
     text: bool = Query(True),
     image: bool = Query(True),
-    table: bool = Query(True)
+    table: bool = Query(True),
+    encode_page: bool = Query(True),
+    segment: bool = Query(True)
 ):
     """
     Handles PDF extraction from byte streams
@@ -101,11 +135,21 @@ async def extract_pdf_bytes(
         text (bool, optional): Whether to extract text from the PDF. Defaults to True.
         image (bool, optional): Whether to extract images from the PDF. Defaults to True.
         table (bool, optional): Whether to extract tables from the PDF. Defaults to True.
-
+        encode_page (bool, optional): Whether to encode and extract each page as an image (base64). Defaults to True.
+        segment (bool, optional): Whether to extract and categorize different content segments. Defaults to True.
     """
     byte_data = await request.body()
     return JSONResponse(
-        content=await process_pdf(byte_data, is_bytes=True, safe_mode=safe_mode, text=text, table=table, image=image)
+        content=await process_pdf(
+            byte_data, 
+            is_bytes=True, 
+            safe_mode=safe_mode, 
+            text=text, 
+            table=table, 
+            image=image, 
+            encode_page=encode_page, 
+            segment=segment
+        )
     )
 
 
@@ -115,7 +159,9 @@ async def extract_pdf_path(
     safe_mode: bool = True,
     text: bool = Query(True),
     image: bool = Query(True),
-    table: bool = Query(True)
+    table: bool = Query(True),
+    encode_page: bool = Query(True),
+    segment: bool = Query(True)
 ):
     """
     Handles PDF extraction using a file path or directory path.
@@ -123,12 +169,14 @@ async def extract_pdf_path(
     Args:
         file_path (str): Path to the PDF file or directory containing PDFs.
         safe_mode (bool, optional): Whether to enable safe mode for this extraction. Defaults to True.
+        text (bool, optional): Whether to extract text from the PDF. Defaults to True.
+        image (bool, optional): Whether to extract images from the PDF. Defaults to True.
+        table (bool, optional): Whether to extract tables from the PDF. Defaults to True.
+        encode_page (bool, optional): Whether to encode and extract each page as an image (base64). Defaults to True.
+        segment (bool, optional): Whether to extract and categorize different content segments. Defaults to True.
 
     Returns:
         JSONResponse: Extracted content from the PDF or directory of PDFs.
-
-    Example:
-        curl -X POST "http://localhost:8000/extract/pdf-path?file_path=sample/data/file.pdf&safe_mode=True"
     """
     try:
         path = validate_path(file_path, safe_mode=safe_mode)
@@ -138,7 +186,15 @@ async def extract_pdf_path(
             )
 
         # Call the dynamic extract_pdfs function (handles both files and directories)
-        extracted_content = await extract_pdfs(str(path), safe_mode=safe_mode, text=text, table=table, image=image)
+        extracted_content = await extract_pdfs(
+            str(path), 
+            safe_mode=safe_mode, 
+            text=text, 
+            table=table, 
+            image=image, 
+            encode_page=encode_page, 
+            segment=segment
+        )
         return JSONResponse(content=extracted_content)
 
     except PDFProcessingError as e:

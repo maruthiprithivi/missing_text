@@ -42,157 +42,134 @@ def main():
                 with st.spinner("Extracting content..."):
                     pdf_content = sync_extract_pdf(uploaded_file.getvalue())
                     st.session_state.pdf_content = pdf_content
-                    st.session_state.total_pages = len(pdf_content["contents"])
                 st.success(
                     "PDF processed successfully. Navigate to other tabs to view the results."
                 )
 
     with tabs[1]:
         st.header("Extracted Text")
-        if st.session_state.pdf_content and "contents" in st.session_state.pdf_content:
+        if st.session_state.pdf_content and "text" in st.session_state.pdf_content and st.session_state.pdf_content["text"]:
             # Split the text into pages
-            
-            # Iterate over each page
-            for i in range(st.session_state.total_pages):
-                st.subheader(f"Page {i + 1}")
+            for i, text_item in enumerate(st.session_state.pdf_content["text"]):
+                st.subheader(f"Page {text_item['page_number']}")
                 col1, col2 = st.columns(2)
-
                 with col1:
-                    if "images" in st.session_state.pdf_content["contents"][i]:
-                        page_images = st.session_state.pdf_content["contents"][i]["images"]
-                        
-                        # Iterate over each image in the list
-                        for j, image in enumerate(page_images):
-                            image_data = image["image_data"]  # Assuming each image has an "image_data" field
-                            st.image(
-                                base64.b64decode(image_data),
-                                caption=f"Page {i + 1} - Image {j + 1}",
-                                use_column_width=True,
-                            )
-                    else:
-                        st.info(f"No image found for Page {i + 1}")
-
-                # Column 2: Display the extracted text
+                    page_image = st.session_state.pdf_content["pages"][i]["image"]
+                    st.image(base64.b64decode(page_image), caption=f"Original Page {text_item['page_number']}", use_column_width=True)
                 with col2:
-                    page_text = st.session_state.pdf_content["contents"][i].get("text", "No text extracted.")
-                    st.text_area(
-                        label=f"Page {i + 1} Content",
-                        value=page_text.strip(),
-                        height=400,
-                        key=f"text_{i}",
-                    )
+                    st.text_area(label=f"Page {text_item['page_number']} Content", value=text_item["content"], height=400, key=f"text_{i}")
+        else:
+            st.warning("No PDF processed yet. Please upload and process a PDF first.")
 
     with tabs[2]:
         st.header("Extracted Tables")
-        if st.session_state.pdf_content and "contents" in st.session_state.pdf_content:
-            # Iterate over each page
-            for i in range(st.session_state.total_pages):
-                if "tables" in st.session_state.pdf_content["contents"][i]:
-                    page_tables = st.session_state.pdf_content["contents"][i]["tables"]
-                    
-                    # Iterate over each image in the list
-                    for j, tables in enumerate(page_tables):
-                        st.subheader(f"Page {i + 1}, Table {j + 1}")
-                        st.dataframe(tables["content"])
-
-                else:
-                    st.info(f"No image found for Page {i + 1}")
-
+        if st.session_state.pdf_content and "tables" in st.session_state.pdf_content and st.session_state.pdf_content["tables"]:
+            for i, table_item in enumerate(st.session_state.pdf_content["tables"]):
+                st.subheader(f"Page {table_item['page_number']}")
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    page_image = st.session_state.pdf_content["pages"][table_item['page_number'] - 1]["image"]
+                    st.image(base64.b64decode(page_image), caption=f"Original Page {table_item['page_number']}", use_column_width=True)
+                with col2:
+                    st.dataframe(table_item["content"], key=f"table_pymupdf_{i}")
+                # with col3:
+                #     st.text_area(label=f"Page {table_item['page_number']} Summarized Content", value=table_item["multi_modal_summary"], height=400, key=f"summarized_text_{i}")
         else:
-            st.warning("No tables extracted. Please process a PDF first.")
+            st.warning("No tables extracted using PyMuPDF.")
 
     with tabs[3]:
         st.header("Extracted Images")
-        if st.session_state.pdf_content and "contents" in st.session_state.pdf_content:
-            for i in range(st.session_state.total_pages):
-                if "images" in st.session_state.pdf_content["contents"][i]:
-                    page_images = st.session_state.pdf_content["contents"][i]["images"]
-                    for j, image in enumerate(page_images):
-                        st.subheader(f"Page {i + 1}, Image {j + 1}")
-                        image_data = base64.b64decode(image["image_data"])
-                        st.image(
-                            Image.open(io.BytesIO(image_data)),
-                            caption=f"Extracted Image {i+1}",
-                            use_column_width=True,
-                        )
-                else:
-                    st.warning("No images extracted. Please process a PDF first.")
-        else:
+        if not st.session_state.pdf_content:
             st.warning("No images extracted. Please process a PDF first.")
-
-
+        elif st.session_state.pdf_content and "images" in st.session_state.pdf_content and st.session_state.pdf_content["images"]:
+            for i, image_item in enumerate(st.session_state.pdf_content["images"]):
+                st.subheader(f"Page {image_item['page_number']}")
+                col1, col2 = st.columns(2)
+                with col1:
+                    # Display the original PDF page
+                    page_image = st.session_state.pdf_content["pages"][image_item['page_number'] - 1]["image"]
+                    st.image(base64.b64decode(page_image), caption=f"Original Page {image_item['page_number']}", use_column_width=True)
+                with col2:
+                    if 'image_data' in image_item:
+                        image_bytes = base64.b64decode(image_item['image_data'])
+                        st.image(Image.open(io.BytesIO(image_bytes)), caption=f"Extracted Image from Page {image_item['page_number']}", use_column_width=True)
+                    else:
+                        st.write("No image data available for this item.")
+        else:
+            st.warning("No images extracted from the PDF.")
+   
     with tabs[4]:
         st.header("Image OCR")
-        if st.session_state.pdf_content and "contents" in st.session_state.pdf_content:
-            for i in range(st.session_state.total_pages):
-                if "images" in st.session_state.pdf_content["contents"][i]:
-                    page_images = st.session_state.pdf_content["contents"][i]["images"]
-                    for j, image in enumerate(page_images):
-                        st.subheader(f"Page {i + 1}, Image {j + 1} OCR")
-                        st.text_area(
-                            label=f"OCR Text for Page {i + 1}, Image {j + 1}",
-                            value=image["content"],
-                            height=200,
-                        )
-                else:
-                    st.warning("No OCR text available. Please process a PDF first.")
+        if not st.session_state.pdf_content:
+            st.warning("No OCR text available. Please process a PDF first.")
+        elif st.session_state.pdf_content and "images" in st.session_state.pdf_content:
+            for i, image_item in enumerate(st.session_state.pdf_content["images"]):
+                st.subheader(f"Page {image_item['page_number']}")
+                col1, col2 = st.columns(2)
+                with col1:
+                    if 'image_data' in image_item:
+                        image_bytes = base64.b64decode(image_item['image_data'])
+                        st.image(Image.open(io.BytesIO(image_bytes)), caption=f"Extracted Image from Page {image_item['page_number']}", use_column_width=True)
+                    else:
+                        st.write("No image data available for this item.")
+                with col2:
+                    st.text_area(label=f"Page {image_item['page_number']} OCR Text", value=image_item["content"], height=200, key=f"image_ocr_{i}")
         else:
-            st.warning("No images extracted. Please process a PDF first.")
-
+            st.warning("No OCR text extracted from images.")
     with tabs[5]:
         st.header("PDF Segments")
         if st.session_state.pdf_content and "segments" in st.session_state.pdf_content:
-            for page_num, page_data in enumerate(
-                st.session_state.pdf_content["segments"]
-            ):
-                st.subheader(f"Page {page_num + 1}")
-
-                # Create a new figure and axis
-                fig, ax = plt.subplots(figsize=(10, 14))
-
-                # Add bounding boxes for each segment
-                segment_colors = {
-                    "text": "blue",
-                    "image": "green",
-                    "table": "red",
-                    "chart": "purple",
-                    "latex": "orange",
-                }
-
-                for segment in page_data["segments"]:
-                    x, y, w, h = segment["bbox"]
-                    rect = patches.Rectangle(
-                        (x, y),
-                        w - x,
-                        h - y,
-                        linewidth=2,
-                        edgecolor=segment_colors.get(segment["type"], "gray"),
-                        facecolor="none",
-                    )
-                    ax.add_patch(rect)
-
-                ax.axis("off")
-                st.pyplot(fig)
-
-                # Display grouped and collapsible segments
-                for segment_type in segment_colors.keys():
-                    segments = [
-                        s for s in page_data["segments"] if s["type"] == segment_type
-                    ]
-                    with st.expander(
-                        f"{segment_type.capitalize()} ({len(segments)})", expanded=False
-                    ):
-                        for segment in segments:
-                            st.markdown(
-                                f'<div style="border-left: 5px solid {segment_colors[segment_type]}; padding-left: 10px;">',
-                                unsafe_allow_html=True,
-                            )
-                            st.write(
-                                f"Content: {segment['content'][:100]}..."
-                            )  # Show first 100 characters
-                            st.write(f"Bounding Box: {segment['bbox']}")
-                            st.markdown("</div>", unsafe_allow_html=True)
-                            st.write("---")
+            for page_data in st.session_state.pdf_content["segments"]:
+                st.subheader(f"Page {page_data['page_number']}")
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    # Display the original PDF page
+                    page_image = st.session_state.pdf_content["pages"][page_data['page_number'] - 1]["image"]
+                    img = Image.open(io.BytesIO(base64.b64decode(page_image)))
+                    
+                    # Create a new figure and axis
+                    fig, ax = plt.subplots(figsize=(10, 14))
+                    ax.imshow(img)
+                    
+                    # Add bounding boxes for each segment
+                    segment_colors = {
+                        'text': 'blue',
+                        'image': 'green',
+                        'table': 'red',
+                        'chart': 'purple',
+                        'latex': 'orange'
+                    }
+                    
+                    for segment in page_data["segments"]:
+                        x, y, w, h = segment["bbox"]
+                        rect = patches.Rectangle((x, y), w - x, h - y, linewidth=2, 
+                                                edgecolor=segment_colors.get(segment["type"], 'gray'), 
+                                                facecolor='none')
+                        ax.add_patch(rect)
+                    
+                    ax.axis('off')
+                    st.pyplot(fig)
+                
+                with col2:
+                    # Group segments by type
+                    segment_groups = {}
+                    for segment in page_data["segments"]:
+                        if segment["type"] not in segment_groups:
+                            segment_groups[segment["type"]] = []
+                        segment_groups[segment["type"]].append(segment)
+                    
+                    # Display grouped and collapsible segments
+                    for segment_type, segments in segment_groups.items():
+                        with st.expander(f"{segment_type.capitalize()} ({len(segments)})", expanded=False):
+                            for segment in segments:
+                                st.markdown(f'<div style="border-left: 5px solid {segment_colors[segment_type]}; padding-left: 10px;">', unsafe_allow_html=True)
+                                if segment['type'] == 'image' and 'image_data' in segment:
+                                    st.image(base64.b64decode(segment['image_data']), caption="Extracted Image", use_column_width=True)
+                                st.write(f"Content: {segment['content'][:100]}...")  # Show first 100 characters
+                                st.write(f"Bounding Box: {segment['bbox']}")
+                                st.markdown('</div>', unsafe_allow_html=True)
+                                st.write("---")
         else:
             st.warning("No segment data available. Please process a PDF first.")
 

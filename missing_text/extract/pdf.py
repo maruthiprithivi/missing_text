@@ -1,4 +1,5 @@
 import pymupdf  # PyMuPDF
+from pymupdf import Rect
 import io
 import json
 import base64
@@ -93,58 +94,246 @@ def _is_running_async() -> bool:
 
 ### HELPER FUNCTIONS ###
 
-
 def _get_page_count(doc: pymupdf.Document) -> int:
-    """Returns the number of pages in a PDF document."""
-    return len(doc)
+    """
+    Returns the number of pages in a PDF document.
+
+    Args:
+        doc (pymupdf.Document): The PDF document.
+
+    Returns:
+        int: The total number of pages in the PDF.
+    """
+    try:
+        return len(doc)
+    except Exception as e:
+        logger.exception(f"Error getting page count: {str(e)}")
+        return 0
 
 
-def _extract_text_from_page(page: pymupdf.Page) -> str:
-    """Extracts text from a single PDF page."""
-    return page.get_text()
+def _extract_text_from_page(page: pymupdf.Page, page_num: int) -> Dict[str, Any]:
+    """
+    Extracts text from a single PDF page.
+
+    Args:
+        page (pymupdf.Page): The PDF page to extract text from.
+        page_num (int): The 0-based page number.
+
+    Returns:
+        Dict[str, Any]: A dictionary containing the page number and the extracted text content.
+    """
+    try:
+        text = page.get_text()
+        return {"page_number": page_num + 1, "content": text}
+    except Exception as e:
+        logger.exception(f"Error extracting text from page {page_num + 1}: {e}")
+        return {
+            "page_number": page_num + 1,
+            "content": f"Error: Unable to extract text from page {page_num + 1}",
+        }
 
 
-def _extract_tables_from_page(page: pymupdf.Page) -> List[Dict[str, Any]]:
-    """Extracts tables from a single PDF page using pandas."""
-    tables = page.find_tables()
-    result = []
-    for table in tables:
-        df = pd.DataFrame(table.extract())
-        result.append(
-            {
-                "content": json.loads(
-                    json.dumps(df.to_dict(orient="records"), cls=DecimalEncoder)
-                ),
-                "metadata": {"columns": list(df.columns), "shape": df.shape},
-            }
-        )
-    return result
+def _extract_tables_from_page(page: pymupdf.Page, page_num: int) -> List[Dict[str, Any]]:
+    """
+    Extracts tables from a single PDF page using PyMuPDF.
+
+    Args:
+        page (pymupdf.Page): The PDF page to extract tables from.
+        page_num (int): The 0-based page number.
+
+    Returns:
+        List[Dict[str, Any]]: A list of dictionaries, each containing the page number,
+                              extracted table content, and metadata (columns and shape).
+    """
+    try:
+        tables = page.find_tables()
+        result = []
+        for table in tables:
+            df = pd.DataFrame(table.extract())
+            result.append(
+                {
+                    "page_number": page_num + 1,
+                    "content": json.loads(
+                        json.dumps(df.to_dict(orient="records"), cls=DecimalEncoder)
+                    ),
+                    "metadata": {"columns": list(df.columns), "shape": df.shape},
+                }
+            )
+        return result
+    except Exception as e:
+        logger.exception(f"Error extracting tables from page {page_num + 1}: {e}")
+        return []
 
 
 def _extract_images_from_page(
-    page: pymupdf.Page, doc: pymupdf.Document
+    page: pymupdf.Page, doc: pymupdf.Document, page_num: int
 ) -> List[Dict[str, Any]]:
-    """Extracts images from a single PDF page and applies OCR."""
-    images = []
-    image_list = page.get_images(full=True)
-    if not image_list:
-        logger.info(f"No images found on page {page.number + 1}")
+    """
+    Extracts images from a single PDF page and applies OCR.
 
-    for img in image_list:
-        xref = img[0]
-        base_image = doc.extract_image(xref)
-        if base_image:
-            image_bytes = base_image["image"]
-            image = Image.open(io.BytesIO(image_bytes))
-            ocr_text = pytesseract.image_to_string(image)
-            images.append(
+    Args:
+        page (pymupdf.Page): The PDF page to extract images from.
+        doc (pymupdf.Document): The entire PDF document to extract image data.
+        page_num (int): The 0-based page number.
+
+    Returns:
+        List[Dict[str, Any]]: A list of dictionaries, each containing the page number, 
+                              OCR'd image content, and image data (base64 encoded).
+    """
+    images = []
+    try:
+        image_list = page.get_images(full=True)
+        if not image_list:
+            logger.info(f"No images found on page {page.number + 1}")
+        else:
+            for img_index, img in enumerate(image_list):
+                try:
+                    xref = img[0]
+                    base_image = doc.extract_image(xref)
+                    if base_image and base_image["image"]:
+                        image_bytes = base_image["image"]
+                        image = Image.open(io.BytesIO(image_bytes))
+                        images.append({
+                            "page_number": page_num + 1,
+                            "content": pytesseract.image_to_string(image),
+                            "image_data": base64.b64encode(image_bytes).decode('utf-8')
+                        })
+                    else:
+                        logger.warning(f"Skipping image on page {page_num + 1}: Unable to extract image data")
+                except ValueError as e:
+                    logger.warning(f"Skipping image on page {page_num + 1} due to ValueError: {str(e)}")
+                except Exception as e:
+                    logger.exception(f"Error processing image on page {page_num + 1}: {str(e)}")
+    except Exception as e:
+        logger.exception(f"Error extracting images from page {page_num + 1}: {str(e)}")
+    return images
+
+
+def _convert_page_as_image(page: pymupdf.Page, page_num: int) -> Dict[str, Any]:
+    """
+    Converts a single PDF page to an image and encodes it in base64.
+
+    Args:
+        page (pymupdf.Page): The PDF page to convert to an image.
+        page_num (int): The 0-based page number.
+
+    Returns:
+        Dict[str, Any]: A dictionary containing the page number and the base64-encoded image.
+    """
+    try:
+        pix = page.get_pixmap()
+        img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+        img_byte_arr = io.BytesIO()
+        img.save(img_byte_arr, format='PNG')
+        img_byte_arr = img_byte_arr.getvalue()
+
+        return {
+            "page_number": page_num + 1,
+            "image": base64.b64encode(img_byte_arr).decode('utf-8')
+        }
+    except Exception as e:
+        logger.exception(f"Error converting page {page_num + 1} to image: {e}")
+        return {
+            "page_number": page_num + 1,
+            "image": None,
+            "error": f"Error converting page {page_num + 1} to image"
+        }
+
+
+def _extract_segments_from_page(page: pymupdf.Page, doc: pymupdf.Document, page_num: int) -> Dict[str, Any]:
+    """
+    Extracts and categorizes different content segments from a PDF page.
+
+    This function identifies text blocks, images, tables, charts, and LaTeX-like content,
+    assigning bounding boxes and content information to each segment.
+
+    Args:
+        page (pymupdf.Page): A PyMuPDF page object.
+        doc (pymupdf.Document): The PyMuPDF document object.
+        page_num (int): The 0-based page number.
+
+    Returns:
+        Dict[str, Any]: A dictionary containing the page number and a list of segments,
+                        where each segment is a dictionary with type, content, and bounding box.
+    """
+    segments = []
+    try:
+        # Extract text segments
+        text_blocks = page.get_text("blocks")
+        for block in text_blocks:
+            segments.append({"type": "text", "content": block[4], "bbox": block[:4]})
+
+        # Extract image segments
+        image_list = page.get_images(full=True)
+        for img_index, img in enumerate(image_list):
+            try:
+                xref = img[0]
+                base_image = doc.extract_image(xref)
+                if base_image and base_image["image"]:
+                    image_bytes = base_image["image"]
+                    image = Image.open(io.BytesIO(image_bytes))
+                    # Get image bounding box
+                    image_rect = page.get_image_bbox(img)
+                    segments.append(
+                        {
+                            "type": "image",
+                            "content": pytesseract.image_to_string(image),
+                            "bbox": list(image_rect),
+                            "image_data": base64.b64encode(image_bytes).decode("utf-8"),
+                        }
+                    )
+                else:
+                    logger.warning(f"Skipping image on page {page_num + 1}: Unable to extract image data")
+            except pymupdf.FileDataError as e:
+                logger.warning(f"Skipping image on page {page_num + 1} due to FileDataError: {str(e)}")
+            except ValueError as e:
+                logger.warning(f"Skipping image on page {page_num + 1} due to ValueError: {str(e)}")
+                try:
+                    image_rect = page.get_image_bbox(xref)
+                    segments.append(
+                        {
+                            "type": "image",
+                            "content": "Image data not available",
+                            "bbox": list(image_rect),
+                        }
+                    )
+                except Exception as inner_e:
+                    logger.warning(f"Unable to get bounding box for image on page {page_num + 1}: {str(inner_e)}")
+            except Exception as e:
+                logger.exception(f"Error processing image on page {page_num + 1}: {str(e)}")
+
+        # Extract table segments (using PyMuPDF's find_tables)
+        tables = page.find_tables()
+        for table in tables:
+            segments.append(
                 {
-                    "content": ocr_text,
-                    "image_data": base64.b64encode(image_bytes).decode("utf-8"),
-                    "xref": xref,
+                    "type": "table",
+                    "content": f"Table ({len(table.cells)} cells)",
+                    "bbox": list(table.bbox),
                 }
             )
-    return images
+
+        # Attempt to detect charts (this is a simple heuristic and may need refinement)
+        drawings = page.get_drawings()
+        for drawing in drawings:
+            if len(drawing["items"]) > 10:  # Assume it's a chart if it has many drawing items
+                bbox = Rect(drawing["rect"])
+                segments.append(
+                    {"type": "chart", "content": "Possible chart", "bbox": list(bbox)}
+                )
+
+        # Detect LaTeX-like content (simple heuristic, may need refinement)
+        latex_patterns = [r"\begin{equation}", r"\end{equation}", r"\frac{", r"\sum_"]
+        for block in text_blocks:
+            if any(pattern in block[4] for pattern in latex_patterns):
+                segments.append(
+                    {"type": "latex", "content": block[4], "bbox": block[:4]}
+                )
+
+    except Exception as e:
+        logger.exception(f"Error extracting segments from page {page_num + 1}: {str(e)}")
+
+    return {"page_number": page_num + 1, "segments": segments}
 
 
 ### SYNCHRONOUS FUNCTIONS ###
@@ -190,17 +379,38 @@ def with_safe_mode(func):
 
 @with_safe_mode
 def sync_extract_pdf(
-    input_data: Union[bytes, str, Path], safe_mode: bool = True, text: bool = True, table: bool = True, image: bool = True
+    input_data: Union[bytes, str, Path], 
+    safe_mode: bool = True, 
+    text: bool = True, 
+    table: bool = True, 
+    image: bool = True, 
+    encode_page: bool = True, 
+    segment: bool = True
 ) -> Dict[str, Any]:
     """
-    Extracts page-separated text, images, and tables from the given PDF file (synchronously).
+    Extracts page-separated text, images, tables, and other content from the given PDF file (synchronously).
 
     Args:
-        input_data (Union[bytes, str, Path]): The in-memory content of the PDF (bytes) or the file path (str or Path).
-        safe_mode (bool, optional): Whether to enable safe mode for this function call. Defaults to True.
+        input_data (Union[bytes, str, Path]): The in-memory content of the PDF (as bytes) or the file path (as str or Path).
+                                              If a byte stream is provided, it directly loads the PDF content.
+                                              If a file path is provided, it validates the file's existence and opens it.
+        safe_mode (bool, optional): Whether to enable safe mode for file handling, which restricts access to a specified 
+                                    directory and ensures only allowed file types can be processed. Defaults to True.
+        text (bool, optional): Whether to extract text content from each PDF page. Defaults to True.
+        table (bool, optional): Whether to extract tables from each PDF page. Defaults to True.
+        image (bool, optional): Whether to extract images from each PDF page and run OCR (Optical Character Recognition) on them. Defaults to True.
+        encode_page (bool, optional): Whether to encode and extract each PDF page as an image (in base64 format). Defaults to True.
+        segment (bool, optional): Whether to extract and categorize different content segments (text blocks, images, tables, charts, etc.). 
+                                  Defaults to True.
 
     Returns:
-        Dict[str, Any]: A dictionary with page-separated text, images, and tables.
+        Dict[str, Any]: A dictionary containing extracted content from the PDF, including:
+                        - "text": List of text extracted from pages (if enabled)
+                        - "tables": List of tables extracted from pages (if enabled)
+                        - "images": List of images extracted from pages, with OCR applied (if enabled)
+                        - "pages": List of page images in base64-encoded format (if enabled)
+                        - "segments": List of categorized content segments, including bounding boxes and content type (if enabled)
+
     """
     try:
         if isinstance(input_data, bytes):
@@ -212,23 +422,31 @@ def sync_extract_pdf(
             doc = pymupdf.open(str(file_path))
 
         total_pages = _get_page_count(doc)
-        extracted_content = {"contents": []}
+        extracted_content = {}
 
         for page_num in range(total_pages):
             page = doc[page_num]
             logger.info(f"Processing page {page_num + 1}/{total_pages}")
-            page_content = {}
 
+            # Only add the "text" key if 'text' is True
             if text:
-                page_content["text"] = _extract_text_from_page(page)
-            if table:
-                page_content["tables"] = _extract_tables_from_page(page)
-            if image:
-                page_content["images"] = _extract_images_from_page(page, doc)
-            
-            page_content["page"] = page_num + 1
+                extracted_content.setdefault("text", []).append(_extract_text_from_page(page, page_num))
 
-            extracted_content["contents"].append(page_content)
+            # Only add the "tables" key if 'table' is True
+            if table:
+                extracted_content.setdefault("tables", []).extend(_extract_tables_from_page(page, page_num))
+
+            # Only add the "images" key if 'image' is True
+            if image:
+                extracted_content.setdefault("images", []).extend(_extract_images_from_page(page, doc, page_num))
+
+            # Only add the "pages" key if 'encode_page' is True
+            if encode_page:
+                extracted_content.setdefault("pages", []).append(_convert_page_as_image(page, page_num))
+
+            # Only add the "segments" key if 'segment' is True
+            if segment:
+                extracted_content.setdefault("segments", []).append(_extract_segments_from_page(page, doc, page_num))
 
         logger.info("PDF processing complete")
         return extracted_content
@@ -243,7 +461,13 @@ def sync_extract_pdf(
 
 
 def sync_extract_pdfs_from_directory(
-    directory_path: Union[str, Path], safe_mode: bool = True, text: bool = True, table: bool = True, image: bool = True
+    directory_path: Union[str, Path], 
+    safe_mode: bool = True, 
+    text: bool = True, 
+    table: bool = True, 
+    image: bool = True, 
+    encode_page: bool = True, 
+    segment: bool = True
 ) -> Dict[str, List[Dict[str, Any]]]:
     """
     Synchronously extracts content from all PDF files in a given directory and its subdirectories.
@@ -251,6 +475,11 @@ def sync_extract_pdfs_from_directory(
     Args:
         directory_path (Union[str, Path]): Path to the directory containing PDF files.
         safe_mode (bool, optional): Whether to enable safe mode for this extraction. Defaults to True.
+        text (bool, optional): Whether to extract text from each PDF page. Defaults to True.
+        table (bool, optional): Whether to extract tables from each PDF page. Defaults to True.
+        image (bool, optional): Whether to extract images from each PDF page. Defaults to True.
+        encode_page (bool, optional): Whether to encode and extract each PDF page as an image (base64). Defaults to True.
+        segment (bool, optional): Whether to extract and categorize content segments. Defaults to True.
 
     Returns:
         Dict[str, List[Dict[str, Any]]]: Extracted content from all PDFs.
@@ -262,10 +491,16 @@ def sync_extract_pdfs_from_directory(
 
     for file_path in traverse_directory(directory_path, safe_mode=safe_mode):
         try:
-            extracted_content = sync_extract_pdf(file_path, safe_mode=safe_mode, text=text, table=table, image=image)
-            extracted_data[str(file_path.relative_to(directory_path))] = (
-                extracted_content
+            extracted_content = sync_extract_pdf(
+                file_path, 
+                safe_mode=safe_mode, 
+                text=text, 
+                table=table, 
+                image=image, 
+                encode_page=encode_page, 
+                segment=segment
             )
+            extracted_data[str(file_path.relative_to(directory_path))] = extracted_content
             logger.info(f"Processed {file_path}")
         except PDFProcessingError as e:
             logger.error(f"Error processing {file_path}: {e}")
@@ -278,17 +513,28 @@ def sync_extract_pdfs_from_directory(
 
 
 async def async_extract_pdf(
-    input_data: Union[bytes, str, Path], safe_mode: bool = True, text: bool = True, table: bool = True, image: bool = True
+    input_data: Union[bytes, str, Path], 
+    safe_mode: bool = True, 
+    text: bool = True, 
+    table: bool = True, 
+    image: bool = True, 
+    encode_page: bool = True, 
+    segment: bool = True
 ) -> Dict[str, Any]:
     """
-    Asynchronously extracts page-separated text, images, and tables from a PDF file.
+    Asynchronously extracts page-separated text, images, tables, and other content from a PDF file.
 
     Args:
         input_data (Union[bytes, str, Path]): The in-memory content of the PDF (bytes) or the file path (str or Path).
         safe_mode (bool, optional): Whether to enable safe mode for this extraction. Defaults to True.
+        text (bool, optional): Whether to extract text from the PDF. Defaults to True.
+        table (bool, optional): Whether to extract tables from the PDF. Defaults to True.
+        image (bool, optional): Whether to extract images from the PDF. Defaults to True.
+        encode_page (bool, optional): Whether to encode each page as an image (base64). Defaults to True.
+        segment (bool, optional): Whether to extract and categorize content segments. Defaults to True.
 
     Returns:
-        Dict[str, Any]: A dictionary with page-separated text, images, and tables.
+        Dict[str, Any]: A dictionary containing extracted content from the PDF.
     """
     try:
         if isinstance(input_data, bytes):
@@ -300,23 +546,22 @@ async def async_extract_pdf(
             doc = pymupdf.open(str(file_path))
 
         total_pages = _get_page_count(doc)
-        extracted_content = {"contents": []}
+        extracted_content = {}
 
         for page_num in range(total_pages):
             page = doc[page_num]
             logger.info(f"Processing page {page_num + 1}/{total_pages}")
-            page_content = {}
-
-            if text:
-                page_content["text"] = _extract_text_from_page(page)
-            if table:
-                page_content["tables"] = _extract_tables_from_page(page)
-            if image:
-                page_content["images"] = _extract_images_from_page(page, doc)
             
-            page_content["page"] = page_num + 1
-
-            extracted_content["contents"].append(page_content)
+            if text:
+                extracted_content.setdefault("text", []).append(_extract_text_from_page(page, page_num))
+            if table:
+                extracted_content.setdefault("tables", []).extend(_extract_tables_from_page(page, page_num))
+            if image:
+                extracted_content.setdefault("images", []).extend(_extract_images_from_page(page, doc, page_num))
+            if encode_page:
+                extracted_content.setdefault("pages", []).append(_convert_page_as_image(page, page_num))
+            if segment:
+                extracted_content.setdefault("segments", []).append(_extract_segments_from_page(page, doc, page_num))
 
             await asyncio.sleep(0)  # Yield control back to the event loop
 
@@ -333,7 +578,13 @@ async def async_extract_pdf(
 
 
 async def async_extract_pdfs_from_directory(
-    directory_path: Union[str, Path], safe_mode: bool = True, text: bool = True, table: bool = True, image: bool = True
+    directory_path: Union[str, Path], 
+    safe_mode: bool = True, 
+    text: bool = True, 
+    table: bool = True, 
+    image: bool = True, 
+    encode_page: bool = True, 
+    segment: bool = True
 ) -> Dict[str, List[Dict[str, Any]]]:
     """
     Asynchronously extracts content from all PDF files in a given directory and its subdirectories.
@@ -341,6 +592,11 @@ async def async_extract_pdfs_from_directory(
     Args:
         directory_path (Union[str, Path]): Path to the directory containing PDF files.
         safe_mode (bool, optional): Whether to enable safe mode for this extraction. Defaults to True.
+        text (bool, optional): Whether to extract text from each PDF page. Defaults to True.
+        table (bool, optional): Whether to extract tables from each PDF page. Defaults to True.
+        image (bool, optional): Whether to extract images from each PDF page. Defaults to True.
+        encode_page (bool, optional): Whether to encode each page as an image (base64). Defaults to True.
+        segment (bool, optional): Whether to extract and categorize content segments. Defaults to True.
 
     Returns:
         Dict[str, List[Dict[str, Any]]]: A dictionary where each key is a PDF file name,
@@ -353,10 +609,16 @@ async def async_extract_pdfs_from_directory(
 
     for file_path in traverse_directory(directory_path, safe_mode=safe_mode):
         try:
-            extracted_content = await async_extract_pdf(file_path, safe_mode=safe_mode, text=text, table=table, image=image)
-            extracted_data[str(file_path.relative_to(directory_path))] = (
-                extracted_content
+            extracted_content = await async_extract_pdf(
+                file_path, 
+                safe_mode=safe_mode, 
+                text=text, 
+                table=table, 
+                image=image, 
+                encode_page=encode_page, 
+                segment=segment
             )
+            extracted_data[str(file_path.relative_to(directory_path))] = extracted_content
             logger.info(f"Processed {file_path}")
         except PDFProcessingError as e:
             logger.error(f"Error processing {file_path}: {e}")
@@ -370,7 +632,13 @@ async def async_extract_pdfs_from_directory(
 
 
 def extract_pdfs(
-    input_path: Union[str, bytes, Path], safe_mode: bool = True, text: bool = True, table: bool = True, image: bool = True
+    input_path: Union[str, bytes, Path], 
+    safe_mode: bool = True, 
+    text: bool = True, 
+    table: bool = True, 
+    image: bool = True, 
+    encode_page: bool = True, 
+    segment: bool = True
 ) -> Union[Dict[str, Any], Dict[str, List[Dict[str, Any]]]]:
     """
     Dynamically processes either a single PDF file or all PDFs in a directory,
@@ -382,67 +650,158 @@ def extract_pdfs(
         text (bool, optional): Whether to extract text from the PDF. Defaults to True.
         table (bool, optional): Whether to extract tables from the PDF. Defaults to True.
         image (bool, optional): Whether to extract images from the PDF. Defaults to True.
+        encode_page (bool, optional): Whether to encode each page as an image (base64). Defaults to True.
+        segment (bool, optional): Whether to extract and categorize content segments. Defaults to True.
 
     Returns:
         Union[Dict[str, Any], Dict[str, List[Dict[str, Any]]]]:
         - If a single PDF, returns extracted content for that PDF.
         - If a directory, returns a dictionary where each key is a PDF file name, and the value is its extracted content.
-
-    Example:
-            {
-                "pdf_file_1.pdf": {
-                    "contents": [
-                        {"text": "Page 1 content", "images": [...], "tables": [...]},
-                        {"text": "Page 2 content", "images": [...], "tables": [...]}
-                    ]
-                },
-                "pdf_file_2.pdf": {
-                    "contents": [
-                        {"text": "Page 1 content", "images": [...], "tables": [...]}
-                    ]
-                }
-            }
     """
     if _is_running_async():
-        return asyncio.create_task(extract_pdfs_async(input_path, safe_mode=safe_mode, text=text, table=table, image=image))
+        return asyncio.create_task(extract_pdfs_async(
+            input_path, 
+            safe_mode=safe_mode, 
+            text=text, 
+            table=table, 
+            image=image, 
+            encode_page=encode_page, 
+            segment=segment
+        ))
     else:
-        return extract_pdfs_sync(input_path, safe_mode=safe_mode, text=text, table=table, image=image)
-
+        return extract_pdfs_sync(
+            input_path, 
+            safe_mode=safe_mode, 
+            text=text, 
+            table=table, 
+            image=image, 
+            encode_page=encode_page, 
+            segment=segment
+        )
 
 def extract_pdfs_sync(
-    input_path: Union[str, bytes, Path], safe_mode: bool = True, text: bool = True, table: bool = True, image: bool = True
+    input_path: Union[str, bytes, Path], 
+    safe_mode: bool = True, 
+    text: bool = True, 
+    table: bool = True, 
+    image: bool = True, 
+    encode_page: bool = True, 
+    segment: bool = True
 ) -> Union[Dict[str, Any], Dict[str, List[Dict[str, Any]]]]:
     """
     Synchronous function to process PDFs (single or directory).
+
+    Args:
+        input_path (Union[str, bytes, Path]): The in-memory content of the PDF (bytes) or the file path (str or Path).
+        safe_mode (bool, optional): Whether to enable safe mode for this extraction. Defaults to True.
+        text (bool, optional): Whether to extract text from each PDF page. Defaults to True.
+        table (bool, optional): Whether to extract tables from each PDF page. Defaults to True.
+        image (bool, optional): Whether to extract images from each PDF page. Defaults to True.
+        encode_page (bool, optional): Whether to encode each page as an image (base64). Defaults to True.
+        segment (bool, optional): Whether to extract and categorize content segments. Defaults to True.
+
+    Returns:
+        Union[Dict[str, Any], Dict[str, List[Dict[str, Any]]]]:
+        - If bytes, returns extracted content for that byte stream.
+        - If a single PDF, returns extracted content for that PDF.
+        - If a directory, returns a dictionary where each key is a PDF file name, and the value is its extracted content.
     """
     if isinstance(input_path, bytes):
-        return sync_extract_pdf(input_path, safe_mode=safe_mode, text=text, table=table, image=image)
+        return sync_extract_pdf(
+            input_path, 
+            safe_mode=safe_mode, 
+            text=text, 
+            table=table, 
+            image=image, 
+            encode_page=encode_page, 
+            segment=segment
+        )
 
     path = validate_path(input_path, safe_mode=safe_mode)
     if path.is_dir():
-        return sync_extract_pdfs_from_directory(path, safe_mode=safe_mode, text=text, table=table, image=image)
+        return sync_extract_pdfs_from_directory(
+            path, 
+            safe_mode=safe_mode, 
+            text=text, 
+            table=table, 
+            image=image, 
+            encode_page=encode_page, 
+            segment=segment
+        )
     elif path.is_file():
-        return sync_extract_pdf(input_path, safe_mode=safe_mode, text=text, table=table, image=image)
+        return sync_extract_pdf(
+            path, 
+            safe_mode=safe_mode, 
+            text=text, 
+            table=table, 
+            image=image, 
+            encode_page=encode_page, 
+            segment=segment
+        )
     else:
         raise PDFProcessingError(
             f"Invalid input: {path} is neither a valid PDF file nor a directory."
         )
 
-
 async def extract_pdfs_async(
-    input_path: Union[str, bytes, Path], safe_mode: bool = True, text: bool = True, table: bool = True, image: bool = True
+    input_path: Union[str, bytes, Path], 
+    safe_mode: bool = True, 
+    text: bool = True, 
+    table: bool = True, 
+    image: bool = True, 
+    encode_page: bool = True, 
+    segment: bool = True
 ) -> Union[Dict[str, Any], Dict[str, List[Dict[str, Any]]]]:
     """
     Asynchronous function to process PDFs (single or directory).
+
+    Args:
+        input_path (Union[str, bytes, Path]): The in-memory content of the PDF (bytes) or the file path (str or Path).
+        safe_mode (bool, optional): Whether to enable safe mode for this extraction. Defaults to True.
+        text (bool, optional): Whether to extract text from each PDF page. Defaults to True.
+        table (bool, optional): Whether to extract tables from each PDF page. Defaults to True.
+        image (bool, optional): Whether to extract images from each PDF page. Defaults to True.
+        encode_page (bool, optional): Whether to encode each page as an image (base64). Defaults to True.
+        segment (bool, optional): Whether to extract and categorize content segments. Defaults to True.
+
+    Returns:
+        Union[Dict[str, Any], Dict[str, List[Dict[str, Any]]]]:
+        - If bytes, returns extracted content for that byte stream.
+        - If a single PDF, returns extracted content for that PDF.
+        - If a directory, returns a dictionary where each key is a PDF file name, and the value is its extracted content.
     """
     if isinstance(input_path, bytes):
-        return await async_extract_pdf(input_path, safe_mode=safe_mode, text=text, table=table, image=image)
+        return await async_extract_pdf(
+            input_path, 
+            safe_mode=safe_mode, 
+            text=text, 
+            table=table, 
+            image=image, 
+            encode_page=encode_page, 
+            segment=segment
+        )
 
     path = validate_path(input_path, safe_mode=safe_mode)
     if path.is_dir():
-        return await async_extract_pdfs_from_directory(path, safe_mode=safe_mode, text=text, table=table, image=image)
+        return await async_extract_pdfs_from_directory(
+            path, 
+            safe_mode=safe_mode, 
+            text=text, 
+            table=table, 
+            image=image, 
+            encode_page=encode_page, 
+            segment=segment
+        )
     elif path.is_file():
-        return await async_extract_pdf(path, safe_mode=safe_mode, text=text, table=table, image=image)
+        return await async_extract_pdf(
+            path, 
+            safe_mode=safe_mode, 
+            text=text, 
+            table=table, 
+            image=image, 
+            encode_page=encode_page, 
+            segment=segment
+        )
     else:
         raise PDFProcessingError(
             f"Invalid input: {path} is neither a valid PDF file nor a directory."
