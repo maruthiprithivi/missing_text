@@ -437,6 +437,35 @@ def recursive_character_splitter_with_overlap(
     overlap: int = 0,
     delimiters: list[str] = ["\n\n", "\n", "[.!?]", ",", " ", ""],
 ):
+    """
+    Recursively splits text into chunks of specified size while preserving natural boundaries and adding overlap between chunks.
+
+    Args:
+        text (str): The text to split into chunks
+        character_size (int, optional): Maximum size of each chunk in characters. Defaults to 800.
+        overlap (int, optional): Number of characters to overlap between chunks. Defaults to 0.
+        delimiters (list[str], optional): List of delimiters to try splitting on, in order of precedence.
+            Defaults to ["\n\n", "\n", "[.!?]", ",", " ", ""] for paragraph, line, sentence, clause, word and character splits.
+
+    Returns:
+        list[str]: List of text chunks with specified size and overlap
+
+    Example:
+        >>> text = "This is a long paragraph. It has multiple sentences. And some line breaks.\n\nThis is another paragraph."
+        >>> chunks = recursive_character_splitter_with_overlap(
+        ...     text,
+        ...     character_size=50,
+        ...     overlap=10,
+        ...     delimiters=["\n\n", "[.!?]"]
+        ... )
+        >>> chunks
+        [
+            'This is a long paragraph. It has multiple sentences.',
+            'multiple sentences. And some line breaks.',
+            'line breaks.\n\nThis is another paragraph.'
+        ]
+    """
+
     import re
 
     def split_recursive(text, delimiters, max_size):
