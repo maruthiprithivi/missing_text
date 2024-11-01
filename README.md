@@ -156,6 +156,12 @@ If you want to run the tests with coverage, yet to be implemented:
 pytest --cov=missing_text
 ```
 
+To generate a coverage report:
+
+```bash
+pytest --cov=missing_text --cov-report=html --cov-report=term
+```
+
 All new features should have corresponding test cases. Tests are located in the `tests/` directory.
 
 ## Contributing

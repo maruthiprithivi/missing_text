@@ -28,6 +28,10 @@ dependencies = [
     "pytest-asyncio>=0.24.0",
     "streamlit>=1.39.0",
     "matplotlib>=3.9.2",
+    "sentence-transformers>=3.2.1",
+    "beautifulsoup4>=4.12.3",
+    "spacy>=3.8.2",
+    "nltk>=3.9.1",
 ]
 
 classifiers = [
