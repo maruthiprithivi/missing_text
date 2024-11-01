@@ -64,4 +64,5 @@ dev = [
     "wheel>=0.44.0",
     "pre-commit>=4.0.0",
     "ruff>=0.6.9",
+    "mkdocs-material>=9.5.43",
 ]

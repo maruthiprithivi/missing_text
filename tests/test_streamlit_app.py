@@ -61,64 +61,81 @@ def test_streamlit_app(
     mock_sync_extract_pdf.return_value = mock_sync_extract_pdf.return_value = {
         "text": [
             {"page_number": 1, "content": "Sample extracted text from page 1"},
-            {"page_number": 2, "content": "Sample extracted text from page 2"}
+            {"page_number": 2, "content": "Sample extracted text from page 2"},
         ],
         "tables": [
             {
                 "page_number": 1,
-                "content": [{"col1": "data1", "col2": "data2"}],  # Table data from page 1
-                "metadata": {"columns": ["col1", "col2"], "shape": (2, 2)}  # Example table metadata
+                "content": [
+                    {"col1": "data1", "col2": "data2"}
+                ],  # Table data from page 1
+                "metadata": {
+                    "columns": ["col1", "col2"],
+                    "shape": (2, 2),
+                },  # Example table metadata
             },
             {
                 "page_number": 2,
-                "content": [{"col1": "value1", "col2": "value2"}],  # Table data from page 2
-                "metadata": {"columns": ["col1", "col2"], "shape": (2, 2)}  # Example table metadata
-            }
+                "content": [
+                    {"col1": "value1", "col2": "value2"}
+                ],  # Table data from page 2
+                "metadata": {
+                    "columns": ["col1", "col2"],
+                    "shape": (2, 2),
+                },  # Example table metadata
+            },
         ],
         "images": [
             {
                 "page_number": 1,
                 "image_data": VALID_BASE64_IMAGE,
-                "content": "OCR text from image on page 1"
+                "content": "OCR text from image on page 1",
             },
             {
                 "page_number": 2,
                 "image_data": VALID_BASE64_IMAGE,
-                "content": "OCR text from image on page 2"
-            }
+                "content": "OCR text from image on page 2",
+            },
         ],
         "segments": [
             {
                 "page_number": 1,
                 "segments": [
-                    {"type": "text", "content": "Sample text segment", "bbox": [0, 0, 100, 100]}
-                ]
+                    {
+                        "type": "text",
+                        "content": "Sample text segment",
+                        "bbox": [0, 0, 100, 100],
+                    }
+                ],
             },
             {
                 "page_number": 2,
                 "segments": [
-                    {"type": "image", "content": "Sample image segment", "bbox": [50, 50, 150, 150]}
-                ]
-            }
+                    {
+                        "type": "image",
+                        "content": "Sample image segment",
+                        "bbox": [50, 50, 150, 150],
+                    }
+                ],
+            },
         ],
         "pages": [
             {
                 "page_number": 1,
-                "image": VALID_BASE64_IMAGE  # Base64-encoded full page 1
+                "image": VALID_BASE64_IMAGE,  # Base64-encoded full page 1
             },
             {
                 "page_number": 2,
-                "image": VALID_BASE64_IMAGE  # Base64-encoded full page 2
-            }
-        ]
+                "image": VALID_BASE64_IMAGE,  # Base64-encoded full page 2
+            },
+        ],
     }
-          
 
     # Run the main function of the Streamlit app
     main()
 
     # Assert the mock objects were called as expected
-    mock_title.assert_called_once_with("PDF Content Extractor")
+    mock_title.assert_called_once_with("MissingText - Processed Document Analyser")
     mock_file_uploader.assert_called_once_with("Choose a PDF file", type="pdf")
     mock_button.assert_called_once_with("Start Processing")
     mock_success.assert_called_once_with(
@@ -144,16 +161,16 @@ def test_streamlit_app_no_file(
     main()
 
     # Check if the title was set
-    mock_title.assert_called_once_with("PDF Content Extractor")
+    mock_title.assert_called_once_with("MissingText - Processed Document Analyser")
 
     # Check if the file uploader was called
     mock_file_uploader.assert_called_once_with("Choose a PDF file", type="pdf")
-    
+
     # Check for all expected warnings, excluding extra `call.call()` entries
     actual_calls = [call[0][0] for call in mock_warning.call_args_list]
 
     expected_warnings = [
-        'Please upload a PDF file before processing.',
+        "Please upload a PDF file before processing.",
         # "No images extracted. Please process a PDF first.",
         # "No OCR text available. Please process a PDF first."
     ]
@@ -163,4 +180,6 @@ def test_streamlit_app_no_file(
 
     # Assert that each expected warning is in the actual calls
     for expected_warning in expected_warnings:
-        assert expected_warning in actual_calls, f"Expected warning '{expected_warning}' not found."
+        assert (
+            expected_warning in actual_calls
+        ), f"Expected warning '{expected_warning}' not found."

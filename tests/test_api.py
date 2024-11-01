@@ -91,7 +91,7 @@ async def test_extract_pdf_file_with_params():
                     # Send a POST request with custom parameters to disable features
                     files = {"file": ("fake_file.pdf", fake_pdf_bytes, "application/pdf")}
                     response = await client.post(
-                        f"/extract/pdf?text={text}&image={image}&table={table}&encode_page={encode_page}&segment={segment}", 
+                        f"/extract/pdf?text={text}&image={image}&table={table}&encode_page={encode_page}&segment={segment}",
                         files=files
                     )
 
@@ -216,11 +216,11 @@ async def test_extract_pdf_path_directory():
                                         assert "tables" in page
                                         assert "images" in page
                                         assert "segments" in page
-                                        
+
 @pytest.mark.asyncio
 async def test_extract_pdf_path_directory_with_params():
     """Test PDF extraction from a directory with text, image, and table params."""
-    
+
     # Mock Path functions to simulate directory and file existence
     with mock.patch("pathlib.Path.is_dir", return_value=True):
         with mock.patch("pathlib.Path.exists", return_value=True):
@@ -247,7 +247,7 @@ async def test_extract_pdf_path_directory_with_params():
                                 response = await client.post(
                                     "/extract/pdf-path?file_path=fake_directory&text=true&image=false&table=true"
                                 )
-                                
+
                             # Assert that the request was successful (status code 200)
                             assert response.status_code == 200, f"Expected 200 but got {response.status_code}"
 

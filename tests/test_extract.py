@@ -98,7 +98,7 @@ def test_sync_extract_pdf_with_params():
             with mock.patch("pymupdf.open", return_value=create_mock_document()):
                 # Call the sync_extract_pdf function with a fake file path and all params disabled
                 extracted_content = sync_extract_pdf("fake_path.pdf", text=False, table=False, image=False, encode_page=False, segment=False)
-    
+
     # Assertions
     assert isinstance(extracted_content, dict)
     assert "text" not in extracted_content
@@ -177,7 +177,7 @@ async def test_async_extract_pdf_with_params():
             with mock.patch("pymupdf.open", return_value=create_mock_document()):
                 # Call the async_extract_pdf function with a fake file path and params disabled
                 extracted_content = await async_extract_pdf("fake_path.pdf", text=False, table=False, image=False, encode_page=False, segment=False)
-    
+
     # Assertions
     assert isinstance(extracted_content, dict)
     assert "text" not in extracted_content

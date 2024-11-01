@@ -177,7 +177,7 @@ def _extract_images_from_page(
         page_num (int): The 0-based page number.
 
     Returns:
-        List[Dict[str, Any]]: A list of dictionaries, each containing the page number, 
+        List[Dict[str, Any]]: A list of dictionaries, each containing the page number,
                               OCR'd image content, and image data (base64 encoded).
     """
     images = []
@@ -379,12 +379,12 @@ def with_safe_mode(func):
 
 @with_safe_mode
 def sync_extract_pdf(
-    input_data: Union[bytes, str, Path], 
-    safe_mode: bool = True, 
-    text: bool = True, 
-    table: bool = True, 
-    image: bool = True, 
-    encode_page: bool = True, 
+    input_data: Union[bytes, str, Path],
+    safe_mode: bool = True,
+    text: bool = True,
+    table: bool = True,
+    image: bool = True,
+    encode_page: bool = True,
     segment: bool = True
 ) -> Dict[str, Any]:
     """
@@ -394,13 +394,13 @@ def sync_extract_pdf(
         input_data (Union[bytes, str, Path]): The in-memory content of the PDF (as bytes) or the file path (as str or Path).
                                               If a byte stream is provided, it directly loads the PDF content.
                                               If a file path is provided, it validates the file's existence and opens it.
-        safe_mode (bool, optional): Whether to enable safe mode for file handling, which restricts access to a specified 
+        safe_mode (bool, optional): Whether to enable safe mode for file handling, which restricts access to a specified
                                     directory and ensures only allowed file types can be processed. Defaults to True.
         text (bool, optional): Whether to extract text content from each PDF page. Defaults to True.
         table (bool, optional): Whether to extract tables from each PDF page. Defaults to True.
         image (bool, optional): Whether to extract images from each PDF page and run OCR (Optical Character Recognition) on them. Defaults to True.
         encode_page (bool, optional): Whether to encode and extract each PDF page as an image (in base64 format). Defaults to True.
-        segment (bool, optional): Whether to extract and categorize different content segments (text blocks, images, tables, charts, etc.). 
+        segment (bool, optional): Whether to extract and categorize different content segments (text blocks, images, tables, charts, etc.).
                                   Defaults to True.
 
     Returns:
@@ -461,12 +461,12 @@ def sync_extract_pdf(
 
 
 def sync_extract_pdfs_from_directory(
-    directory_path: Union[str, Path], 
-    safe_mode: bool = True, 
-    text: bool = True, 
-    table: bool = True, 
-    image: bool = True, 
-    encode_page: bool = True, 
+    directory_path: Union[str, Path],
+    safe_mode: bool = True,
+    text: bool = True,
+    table: bool = True,
+    image: bool = True,
+    encode_page: bool = True,
     segment: bool = True
 ) -> Dict[str, List[Dict[str, Any]]]:
     """
@@ -492,12 +492,12 @@ def sync_extract_pdfs_from_directory(
     for file_path in traverse_directory(directory_path, safe_mode=safe_mode):
         try:
             extracted_content = sync_extract_pdf(
-                file_path, 
-                safe_mode=safe_mode, 
-                text=text, 
-                table=table, 
-                image=image, 
-                encode_page=encode_page, 
+                file_path,
+                safe_mode=safe_mode,
+                text=text,
+                table=table,
+                image=image,
+                encode_page=encode_page,
                 segment=segment
             )
             extracted_data[str(file_path.relative_to(directory_path))] = extracted_content
@@ -513,12 +513,12 @@ def sync_extract_pdfs_from_directory(
 
 
 async def async_extract_pdf(
-    input_data: Union[bytes, str, Path], 
-    safe_mode: bool = True, 
-    text: bool = True, 
-    table: bool = True, 
-    image: bool = True, 
-    encode_page: bool = True, 
+    input_data: Union[bytes, str, Path],
+    safe_mode: bool = True,
+    text: bool = True,
+    table: bool = True,
+    image: bool = True,
+    encode_page: bool = True,
     segment: bool = True
 ) -> Dict[str, Any]:
     """
@@ -551,7 +551,7 @@ async def async_extract_pdf(
         for page_num in range(total_pages):
             page = doc[page_num]
             logger.info(f"Processing page {page_num + 1}/{total_pages}")
-            
+
             if text:
                 extracted_content.setdefault("text", []).append(_extract_text_from_page(page, page_num))
             if table:
@@ -578,12 +578,12 @@ async def async_extract_pdf(
 
 
 async def async_extract_pdfs_from_directory(
-    directory_path: Union[str, Path], 
-    safe_mode: bool = True, 
-    text: bool = True, 
-    table: bool = True, 
-    image: bool = True, 
-    encode_page: bool = True, 
+    directory_path: Union[str, Path],
+    safe_mode: bool = True,
+    text: bool = True,
+    table: bool = True,
+    image: bool = True,
+    encode_page: bool = True,
     segment: bool = True
 ) -> Dict[str, List[Dict[str, Any]]]:
     """
@@ -610,12 +610,12 @@ async def async_extract_pdfs_from_directory(
     for file_path in traverse_directory(directory_path, safe_mode=safe_mode):
         try:
             extracted_content = await async_extract_pdf(
-                file_path, 
-                safe_mode=safe_mode, 
-                text=text, 
-                table=table, 
-                image=image, 
-                encode_page=encode_page, 
+                file_path,
+                safe_mode=safe_mode,
+                text=text,
+                table=table,
+                image=image,
+                encode_page=encode_page,
                 segment=segment
             )
             extracted_data[str(file_path.relative_to(directory_path))] = extracted_content
@@ -632,12 +632,12 @@ async def async_extract_pdfs_from_directory(
 
 
 def extract_pdfs(
-    input_path: Union[str, bytes, Path], 
-    safe_mode: bool = True, 
-    text: bool = True, 
-    table: bool = True, 
-    image: bool = True, 
-    encode_page: bool = True, 
+    input_path: Union[str, bytes, Path],
+    safe_mode: bool = True,
+    text: bool = True,
+    table: bool = True,
+    image: bool = True,
+    encode_page: bool = True,
     segment: bool = True
 ) -> Union[Dict[str, Any], Dict[str, List[Dict[str, Any]]]]:
     """
@@ -660,32 +660,32 @@ def extract_pdfs(
     """
     if _is_running_async():
         return asyncio.create_task(extract_pdfs_async(
-            input_path, 
-            safe_mode=safe_mode, 
-            text=text, 
-            table=table, 
-            image=image, 
-            encode_page=encode_page, 
+            input_path,
+            safe_mode=safe_mode,
+            text=text,
+            table=table,
+            image=image,
+            encode_page=encode_page,
             segment=segment
         ))
     else:
         return extract_pdfs_sync(
-            input_path, 
-            safe_mode=safe_mode, 
-            text=text, 
-            table=table, 
-            image=image, 
-            encode_page=encode_page, 
+            input_path,
+            safe_mode=safe_mode,
+            text=text,
+            table=table,
+            image=image,
+            encode_page=encode_page,
             segment=segment
         )
 
 def extract_pdfs_sync(
-    input_path: Union[str, bytes, Path], 
-    safe_mode: bool = True, 
-    text: bool = True, 
-    table: bool = True, 
-    image: bool = True, 
-    encode_page: bool = True, 
+    input_path: Union[str, bytes, Path],
+    safe_mode: bool = True,
+    text: bool = True,
+    table: bool = True,
+    image: bool = True,
+    encode_page: bool = True,
     segment: bool = True
 ) -> Union[Dict[str, Any], Dict[str, List[Dict[str, Any]]]]:
     """
@@ -708,34 +708,34 @@ def extract_pdfs_sync(
     """
     if isinstance(input_path, bytes):
         return sync_extract_pdf(
-            input_path, 
-            safe_mode=safe_mode, 
-            text=text, 
-            table=table, 
-            image=image, 
-            encode_page=encode_page, 
+            input_path,
+            safe_mode=safe_mode,
+            text=text,
+            table=table,
+            image=image,
+            encode_page=encode_page,
             segment=segment
         )
 
     path = validate_path(input_path, safe_mode=safe_mode)
     if path.is_dir():
         return sync_extract_pdfs_from_directory(
-            path, 
-            safe_mode=safe_mode, 
-            text=text, 
-            table=table, 
-            image=image, 
-            encode_page=encode_page, 
+            path,
+            safe_mode=safe_mode,
+            text=text,
+            table=table,
+            image=image,
+            encode_page=encode_page,
             segment=segment
         )
     elif path.is_file():
         return sync_extract_pdf(
-            path, 
-            safe_mode=safe_mode, 
-            text=text, 
-            table=table, 
-            image=image, 
-            encode_page=encode_page, 
+            path,
+            safe_mode=safe_mode,
+            text=text,
+            table=table,
+            image=image,
+            encode_page=encode_page,
             segment=segment
         )
     else:
@@ -744,12 +744,12 @@ def extract_pdfs_sync(
         )
 
 async def extract_pdfs_async(
-    input_path: Union[str, bytes, Path], 
-    safe_mode: bool = True, 
-    text: bool = True, 
-    table: bool = True, 
-    image: bool = True, 
-    encode_page: bool = True, 
+    input_path: Union[str, bytes, Path],
+    safe_mode: bool = True,
+    text: bool = True,
+    table: bool = True,
+    image: bool = True,
+    encode_page: bool = True,
     segment: bool = True
 ) -> Union[Dict[str, Any], Dict[str, List[Dict[str, Any]]]]:
     """
@@ -772,34 +772,34 @@ async def extract_pdfs_async(
     """
     if isinstance(input_path, bytes):
         return await async_extract_pdf(
-            input_path, 
-            safe_mode=safe_mode, 
-            text=text, 
-            table=table, 
-            image=image, 
-            encode_page=encode_page, 
+            input_path,
+            safe_mode=safe_mode,
+            text=text,
+            table=table,
+            image=image,
+            encode_page=encode_page,
             segment=segment
         )
 
     path = validate_path(input_path, safe_mode=safe_mode)
     if path.is_dir():
         return await async_extract_pdfs_from_directory(
-            path, 
-            safe_mode=safe_mode, 
-            text=text, 
-            table=table, 
-            image=image, 
-            encode_page=encode_page, 
+            path,
+            safe_mode=safe_mode,
+            text=text,
+            table=table,
+            image=image,
+            encode_page=encode_page,
             segment=segment
         )
     elif path.is_file():
         return await async_extract_pdf(
-            path, 
-            safe_mode=safe_mode, 
-            text=text, 
-            table=table, 
-            image=image, 
-            encode_page=encode_page, 
+            path,
+            safe_mode=safe_mode,
+            text=text,
+            table=table,
+            image=image,
+            encode_page=encode_page,
             segment=segment
         )
     else:

@@ -22,13 +22,13 @@ router = APIRouter()
 # Helper function to handle file processing (refactored to reduce duplication)
 # Helper function to handle file processing (refactored to reduce duplication)
 async def process_pdf(
-    input_data, 
-    is_bytes: bool = False, 
-    safe_mode: bool = True, 
-    text: bool = True, 
-    table: bool = True, 
-    image: bool = True, 
-    encode_page: bool = True, 
+    input_data,
+    is_bytes: bool = False,
+    safe_mode: bool = True,
+    text: bool = True,
+    table: bool = True,
+    image: bool = True,
+    encode_page: bool = True,
     segment: bool = True
 ) -> dict:
     file_location = None  # Initialize file_location for later use
@@ -38,10 +38,10 @@ async def process_pdf(
         if file_size <= FILE_SIZE_THRESHOLD:
             logging.info("Processing small data in-memory using async method.")
             extracted_content = await async_extract_pdf(
-                input_data, 
-                safe_mode=safe_mode, 
-                text=text, 
-                table=table, 
+                input_data,
+                safe_mode=safe_mode,
+                text=text,
+                table=table,
                 image=image,
                 encode_page=encode_page,
                 segment=segment
@@ -58,10 +58,10 @@ async def process_pdf(
 
             # Run sync_extract_pdf in a thread pool asynchronously
             extracted_content = await run_in_threadpool(
-                sync_extract_pdf, file_location, 
-                safe_mode=safe_mode, 
-                text=text, 
-                table=table, 
+                sync_extract_pdf, file_location,
+                safe_mode=safe_mode,
+                text=text,
+                table=table,
                 image=image,
                 encode_page=encode_page,
                 segment=segment
@@ -82,7 +82,7 @@ async def process_pdf(
 
 @router.post("/extract/pdf")
 async def extract_pdf(
-    file: UploadFile = File(...), 
+    file: UploadFile = File(...),
     safe_mode: bool = True,
     text: bool = Query(True),
     image: bool = Query(True),
@@ -105,12 +105,12 @@ async def extract_pdf(
     file_content = await file.read()
     return JSONResponse(
         content=await process_pdf(
-            file_content, 
-            safe_mode=safe_mode, 
-            text=text, 
-            table=table, 
-            image=image, 
-            encode_page=encode_page, 
+            file_content,
+            safe_mode=safe_mode,
+            text=text,
+            table=table,
+            image=image,
+            encode_page=encode_page,
             segment=segment
         )
     )
@@ -118,8 +118,8 @@ async def extract_pdf(
 
 @router.post("/extract/pdf-bytes")
 async def extract_pdf_bytes(
-    request: Request, 
-    safe_mode: bool = True,  
+    request: Request,
+    safe_mode: bool = True,
     text: bool = Query(True),
     image: bool = Query(True),
     table: bool = Query(True),
@@ -141,13 +141,13 @@ async def extract_pdf_bytes(
     byte_data = await request.body()
     return JSONResponse(
         content=await process_pdf(
-            byte_data, 
-            is_bytes=True, 
-            safe_mode=safe_mode, 
-            text=text, 
-            table=table, 
-            image=image, 
-            encode_page=encode_page, 
+            byte_data,
+            is_bytes=True,
+            safe_mode=safe_mode,
+            text=text,
+            table=table,
+            image=image,
+            encode_page=encode_page,
             segment=segment
         )
     )
@@ -155,7 +155,7 @@ async def extract_pdf_bytes(
 
 @router.post("/extract/pdf-path")
 async def extract_pdf_path(
-    file_path: str, 
+    file_path: str,
     safe_mode: bool = True,
     text: bool = Query(True),
     image: bool = Query(True),
@@ -187,12 +187,12 @@ async def extract_pdf_path(
 
         # Call the dynamic extract_pdfs function (handles both files and directories)
         extracted_content = await extract_pdfs(
-            str(path), 
-            safe_mode=safe_mode, 
-            text=text, 
-            table=table, 
-            image=image, 
-            encode_page=encode_page, 
+            str(path),
+            safe_mode=safe_mode,
+            text=text,
+            table=table,
+            image=image,
+            encode_page=encode_page,
             segment=segment
         )
         return JSONResponse(content=extracted_content)
